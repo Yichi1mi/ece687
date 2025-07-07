@@ -5,7 +5,7 @@ import numpy as np
 def dwa_planner(robot, goal):
     dt = 0.05
     predict_time = 1.0
-    v_samples = np.linspace(-0.05, 0.1, 15)
+    v_samples = np.linspace(-0.1, 0.1, 15)
     w_samples = np.radians(np.linspace(-40, 40, 21))
 
     robot_pose, _, _, obstacle_poses, _ = robot.get_poses()
@@ -39,14 +39,15 @@ def simulate_trajectory(start_pose, v, w, dt, predict_time):
 
 def evaluate_trajectory(robot, robot_traj, goal, obstacle_poses, v, w):
     
-    ROBOT_BOUNDING_RADIUS = 0.22 
-    OBSTACLE_RADIUS = max(robot.ROBOT_SIZE) * 0.5
-    SAFE_DIST = ROBOT_BOUNDING_RADIUS + OBSTACLE_RADIUS + 0.03
+    ROBOT_BOUNDING_RADIUS = max(robot.ROBOT_SIZE) * 0.6
+    OBSTACLE_RADIUS = max(robot.ROBOT_SIZE) * 0.6
+    SAFE_DIST = ROBOT_BOUNDING_RADIUS + OBSTACLE_RADIUS
 
     goal_weight = 1.0
-    obs_weight = 1.5
-    heading_weight = 1.0
-    reverse_penalty = 2.0
+    obs_weight = 1.0
+    heading_weight = 0.25
+    reverse_penalty = 1.0
+    velocity_weight = 1.0
 
     final_x, final_y, final_theta = robot_traj[-1]
 
@@ -60,6 +61,9 @@ def evaluate_trajectory(robot, robot_traj, goal, obstacle_poses, v, w):
     
     # 3. 倒车惩罚分
     score_reverse = v * reverse_penalty if v < 0 else 0
+    
+    # 4. 新增：速度奖励分，鼓励机器人移动，避免停滞
+    score_velocity = v if v > 0 else 0
     
     # --- 碰撞检测 ---
     score_obs = 0
@@ -81,4 +85,5 @@ def evaluate_trajectory(robot, robot_traj, goal, obstacle_poses, v, w):
     return (goal_weight * score_goal +
             obs_weight * score_obs +
             heading_weight * score_heading +
+            velocity_weight * score_velocity +
             score_reverse)

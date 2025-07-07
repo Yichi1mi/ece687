@@ -11,8 +11,8 @@ def avoid_obstacles(robot: MobileManipulatorUnicycleSim):
         robot_pose, pickup, dropoff, _, _ = robot.get_poses()
         goal = pickup if not reached_pickup else dropoff
 
-        gripper_x = robot_pose[0] + 0.3 * math.cos(robot_pose[2])
-        gripper_y = robot_pose[1] + 0.3 * math.sin(robot_pose[2])
+        gripper_x = robot_pose[0] + 0.35 * math.cos(robot_pose[2])
+        gripper_y = robot_pose[1] + 0.35 * math.sin(robot_pose[2])
         distance = math.hypot(gripper_x - goal[0], gripper_y - goal[1])
         
         robot_x, robot_y, robot_theta = robot_pose
@@ -21,27 +21,31 @@ def avoid_obstacles(robot: MobileManipulatorUnicycleSim):
         heading_error_deg = math.degrees(heading_error)
 
         if not straight_mode:
-            # 进入直线冲刺的条件，用gripper距离和底盘朝向判断
-            if distance < 0.3 and abs(heading_error_deg) < 8:
+            if distance < 0.35 and abs(heading_error_deg) < 8:
                 print("Entering straight mode")
                 straight_mode = True
             else:
                 dwa_planner(robot, goal)
         else:
-            # 直线冲刺，速度不要太快
             forward_speed = 0.05
             small_w = math.radians(max(min(heading_error_deg, 5), -5))
             robot.set_mobile_base_speed_and_gripper_power(forward_speed, small_w, 0)
             time.sleep(0.05)
-            # 丢失对准就返回DWA
-            if abs(heading_error_deg) > 20:
+            if distance < 0.3 and abs(heading_error_deg) > 15:
                 print("Lost alignment in straight mode. Returning to DWA.")
+                start_time = time.time()
+                while time.time() - start_time < 3.5:
+                    robot.set_mobile_base_speed_and_gripper_power(-0.1, 0, 0)
+                    time.sleep(0.05)
                 straight_mode = False
-            # 到达目标点，用gripper距离判定
             if distance < 0.03:
                 robot.set_mobile_base_speed_and_gripper_power(0, 0, 0)
                 print("Reached!")
                 time.sleep(1)
+                start_time = time.time()
+                while time.time() - start_time < 2.:
+                    robot.set_mobile_base_speed_and_gripper_power(-0.1, 0, 0)
+                    time.sleep(0.05)
                 if not reached_pickup:
                     reached_pickup = True
                     straight_mode = False

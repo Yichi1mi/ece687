@@ -69,17 +69,11 @@ class MobileManipulatorUnicycleSim:
             self.dropoff_location = dropoff_location
         else:
             self.dropoff_location = generate_safe_point(self.ENV_SIZE, 0.40)
-        # if obstacles_location:
-        #     self.obstacles_location = obstacles_location
-        # else:
-        #     self.obstacles_location = [[-self.ENV_SIZE / 2.0 + self.ENV_SIZE * random.random(), -self.ENV_SIZE / 2.0 + self.ENV_SIZE * random.random()], [-self.ENV_SIZE / 2.0 + self.ENV_SIZE * random.random(), -self.ENV_SIZE / 2.0 + self.ENV_SIZE * random.random()]]
         if obstacles_location:
             self.obstacles_location = obstacles_location
         else:
             radius = max(self.ROBOT_SIZE) * 0.6
             self.obstacles_location = generate_non_overlapping_positions(9, radius, self.ENV_SIZE)
-
-
 
         # initialize obstacle speed and orientation
         self.obstacle_poses = [
@@ -98,7 +92,11 @@ class MobileManipulatorUnicycleSim:
             for _ in range(len(self.obstacles_location))
         ]
 
-
+        # 新增：初始化障碍物的状态和计时器，用于实现随机运动/停止
+        # 以50%的概率随机初始化为'moving'或'stopped'
+        self.obstacle_states = ['moving' if random.random() > 0.5 else 'stopped' for _ in range(len(self.obstacles_location))]
+        # 状态持续时间在2到5秒之间
+        self.obstacle_state_timers = [random.uniform(2.0, 5.0) for _ in range(len(self.obstacles_location))]
 
         # initialize counters
         self.last_time_set_mobile_base_speed = int(round(time.time()*1000))
@@ -115,8 +113,6 @@ class MobileManipulatorUnicycleSim:
         p_env = patches.Rectangle(np.array([-self.ENV_SIZE / 2.0, -self.ENV_SIZE / 2.0]), self.ENV_SIZE, self.ENV_SIZE, fill=False)
         p_pu_loc = patches.Circle(np.array(self.pickup_location), radius=self.LOC_RADIUS, facecolor='b')
         p_do_loc = patches.Circle(np.array(self.dropoff_location), radius=self.LOC_RADIUS, facecolor='g')
-        # p_o1_loc = patches.Circle(np.array(self.obstacles_location[0]), radius=self.LOC_RADIUS, facecolor='r')
-        # p_o2_loc = patches.Circle(np.array(self.obstacles_location[1]), radius=self.LOC_RADIUS, facecolor='r')
 
         R = np.array([[0.0, 1.0], [-1.0, 0.0]]) @ np.array([[math.cos(self.robot_pose[2]), -math.sin(self.robot_pose[2])], [math.sin(self.robot_pose[2]), math.cos(self.robot_pose[2])]])
         t = np.array([self.robot_pose[0], self.robot_pose[1]])
@@ -125,16 +121,12 @@ class MobileManipulatorUnicycleSim:
         
         self.patches.append(p_pu_loc)
         self.patches.append(p_do_loc)
-        # self.patches.append(p_o1_loc)
-        # self.patches.append(p_o2_loc)
         self.patches.append(p_robot)
         self.patches.append(p_gripper)
         
         self.axes.add_patch(p_env)
         self.axes.add_patch(p_pu_loc)
         self.axes.add_patch(p_do_loc)
-        # self.axes.add_patch(p_o1_loc)
-        # self.axes.add_patch(p_o2_loc)
         self.axes.add_patch(p_robot)
         self.axes.add_patch(p_gripper)
         
@@ -153,8 +145,6 @@ class MobileManipulatorUnicycleSim:
         plt.ion()
         plt.show()
 
-# in mobile_manipulator_unicycle_sim.py -> class MobileManipulatorUnicycleSim
-
     def __update_plot(self):
         R = np.array([[0.0, 1.0], [-1.0, 0.0]]) @ np.array([[math.cos(self.robot_pose[2]), -math.sin(self.robot_pose[2])], [math.sin(self.robot_pose[2]), math.cos(self.robot_pose[2])]])
         t = np.array([self.robot_pose[0], self.robot_pose[1]])
@@ -167,45 +157,55 @@ class MobileManipulatorUnicycleSim:
         self.patches[3].xy = xy_gripper
         
         radius = max(self.ROBOT_SIZE) * 0.6
+        dt = 0.05 # 固定的时间步长，用于模拟更新
 
         for i in range(len(self.obstacle_poses)):
-            x, y, theta = self.obstacle_poses[i]
-            v, omega_deg = self.obstacle_speeds[i]
-            dt = 0.05
+            # 更新：管理状态和计时器
+            self.obstacle_state_timers[i] -= dt
+            if self.obstacle_state_timers[i] <= 0:
+                # 切换状态
+                self.obstacle_states[i] = 'stopped' if self.obstacle_states[i] == 'moving' else 'moving'
+                # 为新状态重置计时器 (2-5秒)
+                self.obstacle_state_timers[i] = random.uniform(2.0, 5.0)
 
-            new_x = x + v * math.cos(theta) * dt
-            new_y = y + v * math.sin(theta) * dt
-            
-            bounced = False
+            # 只有在'moving'状态下才更新障碍物位置
+            if self.obstacle_states[i] == 'moving':
+                x, y, theta = self.obstacle_poses[i]
+                v, omega_deg = self.obstacle_speeds[i]
 
-            # 撞墙反弹
-            if abs(new_x) + radius > self.ENV_SIZE / 2.0 or abs(new_y) + radius > self.ENV_SIZE / 2.0:
-                theta += math.pi
-                bounced = True
+                new_x = x + v * math.cos(theta) * dt
+                new_y = y + v * math.sin(theta) * dt
+                
+                bounced = False
 
-            # 障碍物之间碰撞反弹
-            if not bounced:
-                for j in range(len(self.obstacle_poses)):
-                    if i == j:
-                        continue
-                    ox, oy, _ = self.obstacle_poses[j]
-                    dist = math.hypot(new_x - ox, new_y - oy)
-                    if dist < 2 * radius:
-                        theta += (random.random() - 0.5) * math.pi
-                        bounced = True
-                        break
-            
-            # -- 此处已移除所有关于躲避或为玩家机器人停止的逻辑 --
+                # 撞墙反弹
+                if abs(new_x) + radius > self.ENV_SIZE / 2.0 or abs(new_y) + radius > self.ENV_SIZE / 2.0:
+                    theta += math.pi
+                    bounced = True
 
-            if bounced:
-                new_x = x
-                new_y = y
+                # 障碍物之间碰撞反弹
+                if not bounced:
+                    for j in range(len(self.obstacle_poses)):
+                        if i == j:
+                            continue
+                        ox, oy, _ = self.obstacle_poses[j]
+                        dist = math.hypot(new_x - ox, new_y - oy)
+                        if dist < 2 * radius:
+                            theta += (random.random() - 0.5) * math.pi
+                            bounced = True
+                            break
+                
+                if bounced:
+                    new_x = x
+                    new_y = y
 
-            theta += math.radians(omega_deg) * dt
+                theta += math.radians(omega_deg) * dt
 
-            self.obstacle_poses[i] = [new_x, new_y, theta]
-            self.obstacles_location[i] = [new_x, new_y]
-            self.patches[4 + i].center = (new_x, new_y)
+                self.obstacle_poses[i] = [new_x, new_y, theta]
+                self.obstacles_location[i] = [new_x, new_y]
+
+            # 更新图形补丁的位置
+            self.patches[4 + i].center = (self.obstacles_location[i][0], self.obstacles_location[i][1])
 
         self.figure.canvas.draw_idle()
         self.figure.canvas.flush_events()
