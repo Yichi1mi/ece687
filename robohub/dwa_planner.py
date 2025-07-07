@@ -8,7 +8,7 @@ def dwa_planner(robot, goal):
     v_samples = np.linspace(-0.1, 0.1, 15)
     w_samples = np.radians(np.linspace(-40, 40, 21))
 
-    robot_pose, _, _, obstacle_poses, _ = robot.get_poses()
+    robot_pose, _, _, obstacle_poses = robot.get_poses()
     best_score = -float("inf")
     best_v = 0
     best_w = 0
@@ -39,17 +39,21 @@ def simulate_trajectory(start_pose, v, w, dt, predict_time):
 
 def evaluate_trajectory(robot, robot_traj, goal, obstacle_poses, v, w):
     
-    ROBOT_BOUNDING_RADIUS = max(robot.ROBOT_SIZE) * 0.6
-    OBSTACLE_RADIUS = max(robot.ROBOT_SIZE) * 0.6
+    ROBOT_WIDTH = 0.24
+    ROBOT_LENGTH = 0.32
+    OBSTACLE_RADIUS = math.sqrt(ROBOT_WIDTH ** 2 + ROBOT_LENGTH ** 2) * 0.5
+    ROBOT_BOUNDING_RADIUS = OBSTACLE_RADIUS
     SAFE_DIST = ROBOT_BOUNDING_RADIUS + OBSTACLE_RADIUS
 
-    goal_weight = 1.0
-    obs_weight = 1.0
-    heading_weight = 0.25
+    goal_weight = 1.5
+    obs_weight = 0.8
+    heading_weight = 0.2
     reverse_penalty = 1.0
-    velocity_weight = 1.0
+    velocity_weight = 1.5
 
     final_x, final_y, final_theta = robot_traj[-1]
+    
+
 
     # 1. 目标分：离目标越近越好
     score_goal = -math.hypot(final_x - goal[0], final_y - goal[1])
@@ -68,9 +72,13 @@ def evaluate_trajectory(robot, robot_traj, goal, obstacle_poses, v, w):
     # --- 碰撞检测 ---
     score_obs = 0
     
-    robot_center_offset = robot.ROBOT_SIZE[1] / 2.0
+    robot_center_offset = ROBOT_LENGTH / 2.0
     final_robot_center_x = final_x + robot_center_offset * math.cos(final_theta)
     final_robot_center_y = final_y + robot_center_offset * math.sin(final_theta)
+    
+    ENV_LIMIT = 2.5
+    if not (-ENV_LIMIT < final_robot_center_x < ENV_LIMIT and -ENV_LIMIT < final_robot_center_y < ENV_LIMIT):
+        return -float("inf")
 
     for obs_pose in obstacle_poses:
         dist = math.hypot(final_robot_center_x - obs_pose[0], final_robot_center_y - obs_pose[1])

@@ -1,14 +1,14 @@
-from mobile_manipulator_unicycle_sim import MobileManipulatorUnicycleSim
+from mobile_manipulator_unicycle import MobileManipulatorUnicycle
 from dwa_planner import dwa_planner
 import time
 import math
 
-def avoid_obstacles(robot: MobileManipulatorUnicycleSim):
+def avoid_obstacles(robot: MobileManipulatorUnicycle):
     reached_pickup = False
     straight_mode = False
 
     while True:
-        robot_pose, pickup, dropoff, _, _ = robot.get_poses()
+        robot_pose, pickup, dropoff, _ = robot.get_poses()
         goal = pickup if not reached_pickup else dropoff
 
         gripper_x = robot_pose[0] + 0.35 * math.cos(robot_pose[2])
@@ -31,7 +31,7 @@ def avoid_obstacles(robot: MobileManipulatorUnicycleSim):
             small_w = math.radians(max(min(heading_error_deg, 5), -5))
             robot.set_mobile_base_speed_and_gripper_power(forward_speed, small_w, 0)
             time.sleep(0.05)
-            if distance < 0.3 and abs(heading_error_deg) > 15:
+            if abs(heading_error_deg) > 15:
                 print("Lost alignment in straight mode. Returning to DWA.")
                 start_time = time.time()
                 while time.time() - start_time < 3.5:

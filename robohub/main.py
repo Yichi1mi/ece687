@@ -1,4 +1,4 @@
-from mobile_manipulator_unicycle import MobileManipulatorUnicycle
+from robohub.mobile_manipulator_unicycle import MobileManipulatorUnicycle
 
 
 robot = MobileManipulatorUnicycle(robot_id=1, backend_server_ip="192.168.0.2")

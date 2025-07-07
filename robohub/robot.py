@@ -75,5 +75,7 @@ class Robot:
             self.obstacles_poses[i] = get_pose_list_from_json_msg(json_msg)
     
     def get_poses(self):
-        return self.robot_pose, self.pickup_pose, self.dropoff_pose, self.obstacles_poses
+        # return self.robot_pose, self.pickup_pose, self.dropoff_pose, self.obstacles_poses
+        valid_obstacles = [p for p in self.obstacles_poses if p]
+        return self.robot_pose, self.pickup_pose, self.dropoff_pose, valid_obstacles
 

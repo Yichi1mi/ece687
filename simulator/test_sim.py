@@ -1,5 +1,5 @@
 from mobile_manipulator_unicycle_sim import MobileManipulatorUnicycleSim
-from avoid_obstacle import avoid_obstacles
+from avoid_obstacle_sim import avoid_obstacles
 import time
 
 # Two options to initialize the simulator
