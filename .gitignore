@@ -1,1 +1,3 @@
 687project/
+__pycache__/
+*.pyc
