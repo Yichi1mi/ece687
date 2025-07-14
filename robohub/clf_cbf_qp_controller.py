@@ -135,11 +135,12 @@ def clf_cbf_qp_controller(robot, goal):
         if problem.status == cp.OPTIMAL or problem.status == cp.OPTIMAL_INACCURATE:
             v_val = v.value
             omega_val = omega.value
-            print(v_val,omega_val)
             robot.set_mobile_base_speed_and_gripper_power(v_val, omega_val, 0)
         else:
             print(f"QP failed with status: {problem.status}. Rotating towards goal.")
+            robot.set_leds(255, 0, 0) # Red for QP failure
             robot.set_mobile_base_speed_and_gripper_power(0, omega_ref, 0)
     except Exception as e:
         print(f"QP solver threw an exception: {e}")
+        robot.set_leds(255, 0, 0) # Red for solver exception
         robot.set_mobile_base_speed_and_gripper_power(0, 0, 0)
