@@ -8,6 +8,8 @@ robot = MobileManipulatorUnicycleSim(robot_id=1)
 # (ii) specified robot and object locations
 # robot = MobileManipulatorUnicycleSim(robot_id=1, robot_pose=[0.0, 0.0, 0.0], pickup_location=[0.75, 0.75], dropoff_location=[-0.75, -0.75], obstacles_location=[[0.5, 0.5], [-0.5, -0.5]])
 
+avoid_obstacles(robot)
+
 # print("Move forward for 2 seconds")
 # start_time = time.time()
 # while time.time() - start_time < 2.:
@@ -38,4 +40,3 @@ robot = MobileManipulatorUnicycleSim(robot_id=1)
 # print("Get the robot's current pose")
 # poses = robot.get_poses()
 # print(f"Robot, pickup, dropoff, obstacles poses: {poses}")
-avoid_obstacles(robot)

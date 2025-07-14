@@ -1,53 +1,67 @@
-from mobile_manipulator_unicycle_sim import MobileManipulatorUnicycleSim
-from dwa_planner_sim import dwa_planner
-import time
 import math
+import time
+from mobile_manipulator_unicycle_sim import MobileManipulatorUnicycleSim
+from clf_cbf_qp_controller import clf_cbf_qp_controller
 
 def avoid_obstacles(robot: MobileManipulatorUnicycleSim):
-    reached_pickup = False
-    straight_mode = False
+    """
+    Main control loop for navigating the robot to pickup and dropoff locations.
+
+    This loop is greatly simplified because the complexity is handled by the
+    CLF-CBF-QP controller. The loop's only responsibilities are:
+    1.  Selecting the current goal (pickup or dropoff).
+    2.  Calling the controller to generate and send motor commands.
+    3.  Checking if the goal has been reached and switching to the next one.
+    """
+    
+    # State variable to track the current phase of the mission
+    # False = navigating to pickup, True = navigating to dropoff
+    is_navigating_to_dropoff = False
+    
+    # Distance threshold to consider a goal "reached"
+    REACHED_THRESHOLD = 0.02 # meters
+    
+    # Back-up duration after reaching a goal
+    BACKUP_TIME = 2.0 # seconds
+    BACKUP_SPEED = -0.08 # m/s
 
     while True:
-        robot_pose, pickup, dropoff, _ = robot.get_poses()
-        goal = pickup if not reached_pickup else dropoff
-
-        gripper_x = robot_pose[0] + 0.35 * math.cos(robot_pose[2])
-        gripper_y = robot_pose[1] + 0.35 * math.sin(robot_pose[2])
-        distance = math.hypot(gripper_x - goal[0], gripper_y - goal[1])
+        # === 1. Get state and determine the current goal ===
+        robot_pose, pickup_loc, dropoff_loc, _ = robot.get_poses()
         
-        robot_x, robot_y, robot_theta = robot_pose
-        target_angle = math.atan2(goal[1] - robot_y, goal[0] - robot_x)
-        heading_error = (target_angle - robot_theta + math.pi) % (2 * math.pi) - math.pi
-        heading_error_deg = math.degrees(heading_error)
+        goal = dropoff_loc if is_navigating_to_dropoff else pickup_loc
+        
+        # Use the gripper position for distance check, as it's the point of interest
+        gripper_x = robot_pose[0] + 0.4 * math.cos(robot_pose[2])
+        gripper_y = robot_pose[1] + 0.4 * math.sin(robot_pose[2])
+        distance_to_goal = math.hypot(gripper_x - goal[0], gripper_y - goal[1])
 
-        if not straight_mode:
-            if distance < 0.35 and abs(heading_error_deg) < 8:
-                print("Entering straight mode")
-                straight_mode = True
+        # === 2. Check for Goal Completion ===
+        if distance_to_goal < REACHED_THRESHOLD:
+            print(f"Goal reached at {goal}!")
+            robot.set_mobile_base_speed_and_gripper_power(0, 0, 0)
+            time.sleep(1.0) # Pause to simulate gripping/releasing
+
+            # Perform a simple backup maneuver
+            print("Backing up...")
+            start_time = time.time()
+            while time.time() - start_time < BACKUP_TIME:
+                robot.set_mobile_base_speed_and_gripper_power(BACKUP_SPEED, 0, 0)
+                time.sleep(0.05)
+            robot.set_mobile_base_speed_and_gripper_power(0, 0, 0)
+
+            # Switch to the next phase of the mission
+            if not is_navigating_to_dropoff:
+                is_navigating_to_dropoff = True
+                print("Proceeding to dropoff location...")
             else:
-                dwa_planner(robot, goal)
-        else:
-            forward_speed = 0.05
-            small_w = math.radians(max(min(heading_error_deg, 5), -5))
-            robot.set_mobile_base_speed_and_gripper_power(forward_speed, small_w, 0)
-            time.sleep(0.05)
-            if abs(heading_error_deg) > 15:
-                print("Lost alignment in straight mode. Returning to DWA.")
-                start_time = time.time()
-                while time.time() - start_time < 3.5:
-                    robot.set_mobile_base_speed_and_gripper_power(-0.1, 0, 0)
-                    time.sleep(0.05)
-                straight_mode = False
-            if distance < 0.03:
-                robot.set_mobile_base_speed_and_gripper_power(0, 0, 0)
-                print("Reached!")
-                time.sleep(1)
-                start_time = time.time()
-                while time.time() - start_time < 2.:
-                    robot.set_mobile_base_speed_and_gripper_power(-0.1, 0, 0)
-                    time.sleep(0.05)
-                if not reached_pickup:
-                    reached_pickup = True
-                    straight_mode = False
-                else:
-                    break
+                print("Mission complete!")
+                break # Exit the main while loop
+            
+            continue # Restart the loop for the new goal
+
+        # === 3. Call the Controller ===
+        # If the goal is not reached, call the QP controller to calculate the
+        # next safe and optimal move.
+        clf_cbf_qp_controller(robot, goal)
+        
