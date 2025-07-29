@@ -133,7 +133,7 @@ def clf_cbf_qp_controller(robot, goal):
         if problem.status == cp.OPTIMAL or problem.status == cp.OPTIMAL_INACCURATE:
             v_val = v.value
             omega_val = omega.value
-            print(v_val,omega_val)
+            # print(v_val,omega_val)
             robot.set_mobile_base_speed_and_gripper_power(v_val, omega_val, 0)
         else:
             print(f"QP failed with status: {problem.status}. Rotating towards goal.")
