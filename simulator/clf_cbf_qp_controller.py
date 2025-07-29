@@ -5,7 +5,6 @@ import cvxpy as cp
 
 def clf_cbf_qp_controller(robot, goal):
 
-    # === Get System State ===
     robot_pose, _, _, obstacle_poses = robot.get_poses()
     x_r, y_r, theta = robot_pose
 
@@ -106,7 +105,6 @@ def clf_cbf_qp_controller(robot, goal):
 
     # === QP Cost Function ===
     
-    # Reference P-controller
     dist_to_goal = math.sqrt(V)
     k_v = 0.5 
     v_ref = np.clip(k_v * dist_to_goal, -v_max, v_max)

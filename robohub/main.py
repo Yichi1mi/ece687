@@ -1,16 +1,21 @@
-from robohub.mobile_manipulator_unicycle import MobileManipulatorUnicycle
+from mobile_manipulator_unicycle import MobileManipulatorUnicycle
+from main_controller import run_pick_and_place_mission, initialize_robot
+import time
+from config import *
 
 
-robot = MobileManipulatorUnicycle(robot_id=1, backend_server_ip="192.168.0.2")
+robot = MobileManipulatorUnicycle(robot_id=2, backend_server_ip="192.168.0.2")
 
-while not task_done:
-    # get poses
-    poses = robot.get_poses()
-    
-    # compute control inputs (v, omega, gripper power, arm pose, leds)
-    # ...
-    
-    # send control inputs to the robot
-    # robot.set_mobile_base_speed_and_gripper_power(v=0.5, omega=0.0, gripper_power=1.0)
-    # robot.set_arm_pose(100, 0)
-    # robot.set_leds(255, 128, 64)
+initialize_robot(robot)
+
+# Wait for all pose
+print("Waiting for all pose data to be ready...")
+while not all(robot.get_poses()):
+    robot.set_leds(*COLOR_WHITE)
+    time.sleep(1.0)
+print("Pose data is ready. Starting the mission!")
+
+run_pick_and_place_mission(robot)
+
+robot.set_leds(*COLOR_WHITE)
+print("Program has exited.")

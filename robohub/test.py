@@ -4,11 +4,11 @@ import time
 from config import *
 
 
-robot = MobileManipulatorUnicycle(robot_id=1, backend_server_ip="192.168.0.2")
+robot = MobileManipulatorUnicycle(robot_id=2, backend_server_ip="192.168.0.2")
 
 initialize_robot(robot)
 
-# Wait for all poses to be available to increase stability
+# Wait for all pose
 print("Waiting for all pose data to be ready...")
 while not all(robot.get_poses()):
     robot.set_leds(*COLOR_WHITE)

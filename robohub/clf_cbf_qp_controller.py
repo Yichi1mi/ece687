@@ -5,27 +5,20 @@ import cvxpy as cp
 from config import *
 
 def clf_cbf_qp_controller(robot, goal, current_robot_pose, current_obstacle_poses):
-    """
-    Calculates robot wheel speeds using a CLF-CBF-QP based controller.
-    This controller ensures the robot moves towards a goal while avoiding obstacles.
-    """
-    # === Unpack System State ===
-    # Unpack the pose information passed into the function.
+
     x_r, y_r, theta = current_robot_pose
     gx, gy = goal[0], goal[1]
 
-    # Calculate positions of the robot's geometric center and gripper.
+    # Robot's geometric center and gripper.
     x_c = x_r + D_CENTER * math.cos(theta)
     y_c = y_r + D_CENTER * math.sin(theta)
 
-    # === Define QP Variables ===
-    # These are the variables the QP solver will optimize for.
+    # === QP Variables ===
     v = cp.Variable()
     omega = cp.Variable()
     delta = cp.Variable() 
 
-    # === Define CLF (Control Lyapunov Function) ===
-    # This function and its constraint drive the robot towards the goal.
+    # === CLF ===
     error_x = x_c - gx
     error_y = y_c - gy
     V = error_x**2 + error_y**2
@@ -33,8 +26,7 @@ def clf_cbf_qp_controller(robot, goal, current_robot_pose, current_obstacle_pose
     dot_V = 2 * (error_x * math.cos(theta) + error_y * math.sin(theta)) * v
     clf_constraint = dot_V + CLF_GAMMA * V <= delta
 
-    # === Define CBF (Control Barrier Functions) ===
-    # These functions and their constraints keep the robot away from obstacles.
+    # === CBF ===
     cbf_constraints = []
     safe_dist_sq = (ROBOT_WIDTH / 2)**2 + (ROBOT_LENGTH / 2)**2
 
@@ -50,8 +42,7 @@ def clf_cbf_qp_controller(robot, goal, current_robot_pose, current_obstacle_pose
         
         cbf_constraints.append(h_dot + CBF_ALPHA * h >= 0)
 
-    # === Define Vortex Field for local obstacle perturbation ===
-    # This adds a rotational component to help navigate around obstacles in close proximity.
+    # === Vortex Field ===
     omega_bias = 0.0
     vec_to_goal_x = gx - x_c
     vec_to_goal_y = gy - y_c
@@ -77,9 +68,7 @@ def clf_cbf_qp_controller(robot, goal, current_robot_pose, current_obstacle_pose
                 omega_bias += vortex_direction * vortex_strength
 
 
-    # === Define QP Cost Function ===
-    # The solver tries to minimize this cost, finding a balance between following a reference
-    # controller and satisfying the CLF constraint.
+    # === QP Cost Function ===
     dist_to_goal = math.sqrt(V)
     v_ref = np.clip(REF_K_V * dist_to_goal, -MAX_LINEAR_SPEED, MAX_LINEAR_SPEED)
 
@@ -89,7 +78,6 @@ def clf_cbf_qp_controller(robot, goal, current_robot_pose, current_obstacle_pose
     
     cost = cp.Minimize((v - v_ref)**2 + QP_P_OMEGA * (omega - (omega_ref + omega_bias))**2 + QP_P_DELTA * delta)
 
-    # === Assemble and Solve the QP ===
     constraints = [
         v >= -MAX_LINEAR_SPEED, v <= MAX_LINEAR_SPEED,
         omega >= -MAX_ANGULAR_SPEED, omega <= MAX_ANGULAR_SPEED,

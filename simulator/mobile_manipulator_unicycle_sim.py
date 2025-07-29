@@ -79,58 +79,48 @@ class MobileManipulatorUnicycleSim:
         self.TIMEOUT_SET_MOBILE_BASE_SPEED = 0
         self.TIMEOUT_GET_POSES = 0
         self.ENV_SIZE = 5
-        self.ROBOT_SIZE = [0.24, 0.32] # width, length
+        self.ROBOT_SIZE = [0.24, 0.32]
         self.GRIPPER_SIZE = 0.1
         self.LOC_RADIUS = 0.1
         self.d_center = self.ROBOT_SIZE[1] / 2.0
 
 
-        # 1. 定义角落坐标和中心取货点
         self.pickup_location = [0.0, 0.0]
         corner_dist_from_center = self.ENV_SIZE / 2.0 - 0.5
         corners = [
-            [corner_dist_from_center, corner_dist_from_center],      # Top-right
-            [-corner_dist_from_center, corner_dist_from_center],     # Top-left
-            [-corner_dist_from_center, -corner_dist_from_center],    # Bottom-left
-            [corner_dist_from_center, -corner_dist_from_center]      # Bottom-right
+            [corner_dist_from_center, corner_dist_from_center],
+            [-corner_dist_from_center, corner_dist_from_center],
+            [-corner_dist_from_center, -corner_dist_from_center],
+            [corner_dist_from_center, -corner_dist_from_center]
         ]
 
-        # 2. 在随机角落生成机器人位姿
-        random.shuffle(corners) # 随机打乱角落顺序
-        robot_center_loc = corners.pop(0) # 为机器人取出一个角落
+        random.shuffle(corners)
+        robot_center_loc = corners.pop(0)
         theta = random.uniform(-math.pi, math.pi)
 
-        # 根据几何中心位置反向计算后轴位置
         x_c, y_c = robot_center_loc
         x_r = x_c - self.d_center * math.cos(theta)
         y_r = y_c - self.d_center * math.sin(theta)
         self.robot_pose = [x_r, y_r, theta]
 
-        # 3. 从剩下的三个角落中随机选择一个作为放置点
         self.dropoff_location = random.choice(corners)
 
-        # 4. 根据新约束生成障碍物
-        # 障碍物需要与机器人中心、取货点、放置点保持至少0.4m的距离
         points_to_avoid = [robot_center_loc, self.pickup_location, self.dropoff_location]
         
         if obstacles_location:
-            # 如果提供了外部位置，则直接使用（这将覆盖上述规则）
             self.obstacle_poses = [[loc[0], loc[1], random.uniform(-math.pi, math.pi)] for loc in obstacles_location]
         else:
-            # 使用生成函数并传入新的约束条件
             self.obstacle_poses = generate_non_overlapping_poses(
                 n=7,
                 env_size=self.ENV_SIZE,
                 robot_size=self.ROBOT_SIZE,
                 target_points=points_to_avoid,
-                obs_safe_dist=0.8,  # 障碍物之间的最小中心距离
-                target_safe_dist=0.6  # 与机器人/目标点的最小中心距离
+                obs_safe_dist=0.8,
+                target_safe_dist=0.6
             )
-        
-        # === 生成逻辑修改结束 ===
 
-        # self.obstacle_speeds = [[0, 0] for _ in self.obstacle_poses]
-        self.obstacle_speeds = [[0.07 + 0.03 * random.random(), (2 * random.random() - 1) * math.radians(30)] for _ in self.obstacle_poses]
+        self.obstacle_speeds = [[0, 0] for _ in self.obstacle_poses]
+        # self.obstacle_speeds = [[0.07 + 0.03 * random.random(), (2 * random.random() - 1) * math.radians(30)] for _ in self.obstacle_poses]
         
         self.obstacle_states = ['moving' if random.random() > 0.5 else 'stopped' for _ in self.obstacle_poses]
         self.obstacle_state_timers = [random.uniform(2.0, 5.0) for _ in self.obstacle_poses]
@@ -147,18 +137,15 @@ class MobileManipulatorUnicycleSim:
     def __calculate_model_vertices(self, pose, size, gripper_size):
         rear_axle_x, rear_axle_y, theta = pose
 
-        # Step 1: 计算几何中心作为 anchor
         x_c = rear_axle_x + self.d_center * math.cos(theta)
         y_c = rear_axle_y + self.d_center * math.sin(theta)
-        t = np.array([x_c, y_c])  # 绘图 anchor 改为几何中心
+        t = np.array([x_c, y_c])
 
-        # Step 2: 构造旋转矩阵（不变）
         R = np.array([[0.0, 1.0], [-1.0, 0.0]]) @ np.array([
             [math.cos(theta), -math.sin(theta)],
             [math.sin(theta),  math.cos(theta)]
         ])
 
-        # Step 3: 绘图顶点统一绕“中心”展开
         body_shape = np.array([
             [-size[0] / 2.0, -size[1] / 2.0],
             [ size[0] / 2.0, -size[1] / 2.0],
@@ -167,7 +154,6 @@ class MobileManipulatorUnicycleSim:
         ])
         body_verts = t + (body_shape @ R.T)
 
-        # Step 4: gripper 还是放在前方，但也以几何中心为基准绘图
         gripper_offset = np.array([0.0, size[1] / 2.0])
         gripper_shape = np.array([
             [-gripper_size / 2.0, 0.0],
@@ -269,14 +255,11 @@ class MobileManipulatorUnicycleSim:
                 x_r, y_r, theta = self.obstacle_poses[i]
                 v, omega = self.obstacle_speeds[i]
                 
-                # 应用和主机器人完全相同的运动学模型
                 new_x_r = x_r + (v * math.cos(theta) + self.d_center * omega * math.sin(theta)) * dt
                 new_y_r = y_r + (v * math.sin(theta) - self.d_center * omega * math.cos(theta)) * dt
                 
-                # 碰撞检测用的新theta也应该提前计算
                 new_theta_for_check = theta + omega * dt
                 
-                # 用更新后的位姿计算新的几何中心，用于碰撞检测
                 new_x_c = new_x_r + self.d_center * math.cos(new_theta_for_check)
                 new_y_c = new_y_r + self.d_center * math.sin(new_theta_for_check)
 
@@ -307,8 +290,6 @@ class MobileManipulatorUnicycleSim:
                     self.obstacle_states[i] = 'turning'
                     self.obstacle_turn_target_angles[i] = theta + math.pi
                 else:
-                    # 之前是: new_theta = theta + omega * dt
-                    # 现在直接使用上面计算碰撞时用的角度
                     new_theta = new_theta_for_check 
                     self.obstacle_poses[i] = [new_x_r, new_y_r, new_theta]
             

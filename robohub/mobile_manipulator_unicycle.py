@@ -6,7 +6,7 @@ class MobileManipulatorUnicycle(Robot):
     def __init__(self, robot_id, backend_server_ip=None):
         super(MobileManipulatorUnicycle, self).__init__(robot_id, backend_server_ip)
 
-    def set_arm_pose(self, x, y, wait_s=2.6): # Not recommended to use a smaller wait time than this
+    def set_arm_pose(self, x, y, wait_s=2.6):
         super(MobileManipulatorUnicycle, self).step([0., 0., 0., x, y, 1., 0.])
         if wait_s > 0.:
             time.sleep(wait_s)
